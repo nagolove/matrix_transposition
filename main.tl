@@ -54,7 +54,6 @@ local function matrix_draw(
         for k, v in ipairs(colored_text) do
             gr.setColor(v.color)
             gr.print(v.s, X, Y)
-            print(v.s)
             if v.s ~= "," then
                 local row = cells[#cells]
                 row[#row + 1] = {
@@ -148,13 +147,13 @@ local m5: Matrix = {
     {5, 6},
 }
 
-local m5: Matrix = {
+local m6: Matrix = {
     {1, 2, 0, -1, 0, -1, -2, -3, 4},
     {3, 4, 0, -1, 0, -1, -2, 0, 4},
-    {5, 6, 0, -1, 0, -1, -2, 0, 4},
+    {5, 6, 0, -10, 0, -1, -2, 0, 4},
+    {3, 40, 0, -1, 0, -1, -200, -3, 4},
     {3, 4, 0, -1, 0, -1, -2, -3, 4},
-    {3, 4, 0, -1, 0, -1, -2, -3, 4},
-    {3, 4, 0, -1, 0, -1, -2, -3, 4},
+    {3, 4, 0, -1, 0, -10, -2, -3, 4},
 }
 
 local function matrix_transpose_fast(m: Matrix): Matrix
@@ -186,7 +185,8 @@ local function matrix_transpose(m: Matrix): Matrix
     for _ = 1, columns do
         table.insert(res, {})
         for j = 1, rows do
-            res[#res][j] = 1/0
+            --res[#res][j] = 1/0
+            res[#res][j] = "_" as number
         end
     end
 
@@ -212,6 +212,7 @@ local mat: Matrix
 local indices: {integer}
 local paused = false
 local canvas = gr.newCanvas(1, 1)
+local arrow_start_time: number
 
 local function calculate_pixel_width(
     m: Matrix, 
@@ -227,7 +228,7 @@ local function calculate_pixel_width(
 end
 
 local x0, y0 = 10, 10
-local m: Matrix = m5
+local m: Matrix = m6
 
 --[[
 local calculated_width: number
@@ -240,6 +241,38 @@ repeat
     print('font_size', font_size)
 until (calculated_width + 400 >= gr.getWidth())
 --]]
+
+local function from_polar(angle: number, radius: number): number, number
+    radius = radius or 1
+    return math.cos(angle) * radius, math.sin(angle) * radius
+end
+
+local function draw_arrow()
+    local from_x, from_y, to_x, to_y = coroutine.yield() as 
+        (number, number, number, number)
+    print(from_x, from_y, to_x, to_y)
+
+    local dirx, diry = to_x - from_x, to_y - from_y
+    local len = math.sqrt(dirx * dirx + diry * diry)
+    local w = math.atan2(dirx, diry)
+    print('dirx, diry', dirx, diry)
+    print("w, len", w, len)
+    local rad = 10.
+
+    while true do
+        from_x, from_y, to_x, to_y = coroutine.yield() as 
+            (number, number, number, number)
+        gr.line(from_x, from_y, to_x, to_y)
+
+        local x, y = from_polar(w, rad)
+        x, y = x + from_x, y + from_y
+        gr.setColor{1, 1, 1, 1}
+        gr.circle("fill", x, y, 10)
+        rad = rad + 0.5
+    end
+end
+
+local draw_arrow_coro = coroutine.create(draw_arrow)
 
 love.draw = function()
     gr.setFont(font)
@@ -262,7 +295,7 @@ love.draw = function()
         wait_time = wait_time_real
         can_resume, new_mat, indices = resume(matrix_transpose_coro, m) 
             as (boolean, Matrix, {integer})
-
+        arrow_start_time = getTime()
         if can_resume then
             mat = new_mat
         end
@@ -283,9 +316,7 @@ love.draw = function()
             gr.setLineWidth(10)
             gr.setColor{0.6, 0.2, 0.9, 0.5}
 
-            --print('cells_orig', inspect(cells_orig))
-            --print('cells_trans', inspect(cells_trans))
-
+            --[[
             for k, v in ipairs(cells_orig) do
                 for k1, v1 in ipairs(v) do
                     if v1.x and v1.y then
@@ -300,20 +331,29 @@ love.draw = function()
                     end
                 end
             end
+            --]]
 
             if  cells_orig[indices[2]] and 
                 cells_orig[indices[2]][indices[1]] and
                 cells_orig[indices[2]][indices[1]].x and
                 cells_orig[indices[2]][indices[1]].y and
-                cells_trans[indices[2]] and 
-                cells_trans[indices[2]][indices[1]] and
-                cells_trans[indices[2]][indices[1]].x and
-                cells_trans[indices[2]][indices[1]].y then
-                    gr.line(
+                cells_trans[indices[1]] and 
+                cells_trans[indices[1]][indices[2]] and
+                cells_trans[indices[1]][indices[2]].x and
+                cells_trans[indices[1]][indices[2]].y then
+
+                    --gr.line(
+                        --cells_orig[indices[2]][indices[1]].x,
+                        --cells_orig[indices[2]][indices[1]].y,
+                        --cells_trans[indices[1]][indices[2]].x,
+                        --cells_trans[indices[1]][indices[2]].y
+                    --)
+
+                    resume(draw_arrow_coro, 
                         cells_orig[indices[2]][indices[1]].x,
                         cells_orig[indices[2]][indices[1]].y,
-                        cells_trans[indices[2]][indices[1]].x,
-                        cells_trans[indices[2]][indices[1]].y
+                        cells_trans[indices[1]][indices[2]].x,
+                        cells_trans[indices[1]][indices[2]].y
                     )
             end
 
