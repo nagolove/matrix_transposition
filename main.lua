@@ -51,7 +51,7 @@ local function matrix_draw(
    local cells = {}
 
    local function draw_colored_text_line(X, Y)
-      for k, v in ipairs(colored_text) do
+      for _, v in ipairs(colored_text) do
          gr.setColor(v.color)
          gr.print(v.s, X, Y)
          if v.s ~= "," then
@@ -207,25 +207,27 @@ end
 local matrix_transpose_coro = coroutine.create(matrix_transpose)
 local last_time = getTime()
 local wait_time = 0.
-local wait_time_real = .5
+local wait_time_real = 1.
 local mat
 local indices
 local paused = false
 local canvas = gr.newCanvas(1, 1)
 local arrow_start_time
 
-local function calculate_pixel_width(
-   m,
-   x0,
-   y0)
 
-   gr.setCanvas(canvas)
-   local res = matrix_draw(m, x0, y0)
-   local transposed_m = matrix_transpose_fast(m)
-   res = res + matrix_draw(transposed_m, res + x0, y0)
-   gr.setCanvas()
-   return res
-end
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 local x0, y0 = 10, 10
 local m = m6
@@ -247,32 +249,54 @@ local function from_polar(angle, radius)
    return math.cos(angle) * radius, math.sin(angle) * radius
 end
 
-local function draw_arrow()
-   local from_x, from_y, to_x, to_y = coroutine.yield()
+local dirx, diry
+local len
+local w
+
+local function draw_arrow_init(
+   from_x,
+   from_y,
+   to_x,
+   to_y)
+
+   dirx, diry = to_x - from_x, to_y - from_y
+   len = math.sqrt(dirx * dirx + diry * diry)
+   w = math.atan2(dirx, diry)
+   arrow_start_time = getTime()
+end
+
+local function draw_arrow(
+   from_x,
+   from_y,
+   to_x,
+   to_y)
 
    print(from_x, from_y, to_x, to_y)
 
-   local dirx, diry = to_x - from_x, to_y - from_y
-   local len = math.sqrt(dirx * dirx + diry * diry)
-   local w = math.atan2(dirx, diry)
    print('dirx, diry', dirx, diry)
    print("w, len", w, len)
+
    local rad = 10.
 
-   while true do
-      from_x, from_y, to_x, to_y = coroutine.yield()
+   local now = getTime()
 
-      gr.line(from_x, from_y, to_x, to_y)
 
-      local x, y = from_polar(w, rad)
-      x, y = x + from_x, y + from_y
-      gr.setColor({ 1, 1, 1, 1 })
-      gr.circle("fill", x, y, 10)
-      rad = rad + 0.5
-   end
+
+   gr.line(from_x, from_y, to_x, to_y)
+
+   local x, y = from_polar(w, rad)
+   print('x, y', x, y)
+   x, y = x + from_x, y + from_y
+
+   gr.setColor({ 1, 1, 1, 1 })
+   gr.circle("fill", x, y, 10)
+
+   gr.setColor({ 1, 0, 1, 1 })
+   gr.circle("fill", y, x, 10)
+
+   rad = rad + 0.5
+
 end
-
-local draw_arrow_coro = coroutine.create(draw_arrow)
 
 love.draw = function()
    gr.setFont(font)
@@ -295,7 +319,27 @@ love.draw = function()
       wait_time = wait_time_real
       can_resume, new_mat, indices = resume(matrix_transpose_coro, m)
 
-      arrow_start_time = getTime()
+
+      if indices and
+         cells_orig and
+         cells_trans and
+         cells_orig[indices[2]] and
+         cells_orig[indices[2]][indices[1]] and
+         cells_orig[indices[2]][indices[1]].x and
+         cells_orig[indices[2]][indices[1]].y and
+         cells_trans[indices[1]] and
+         cells_trans[indices[1]][indices[2]] and
+         cells_trans[indices[1]][indices[2]].x and
+         cells_trans[indices[1]][indices[2]].y then
+         draw_arrow_init(
+         cells_orig[indices[2]][indices[1]].x,
+         cells_orig[indices[2]][indices[1]].y,
+         cells_trans[indices[1]][indices[2]].x,
+         cells_trans[indices[1]][indices[2]].y)
+
+
+      end
+
       if can_resume then
          mat = new_mat
       end
@@ -349,11 +393,19 @@ love.draw = function()
 
 
 
-            resume(draw_arrow_coro,
+
+
+
+
+
+
+
+            draw_arrow(
             cells_orig[indices[2]][indices[1]].x,
             cells_orig[indices[2]][indices[1]].y,
             cells_trans[indices[1]][indices[2]].x,
             cells_trans[indices[1]][indices[2]].y)
+
 
          end
 
