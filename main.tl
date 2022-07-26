@@ -1,6 +1,9 @@
-local ceil = math.ceil
+local inspect = require "inspect"
+local getTime = love.timer.getTime
+local resume = coroutine.resume
 local gr = love.graphics
-local font = gr.newFont(70)
+local font = gr.newFont("dejavusansmono.ttf", 70)
+local text = gr.newText(font)
 
 love.window.setMode(1920, 1080)
 
@@ -9,8 +12,14 @@ local type Matrix = {{number}}
 --local function bracket_draw(m: Matrix, x: number, y: number)
 --end
 
+-- active[1], active[2] - индексы для подсветки элемента
 -- Возвращает ширину матрицы в пикселях
-local function matrix_draw(m: Matrix, x: number, y: number): number
+local function matrix_draw(
+    m: Matrix, 
+    x: number, y: number, 
+    active: {number}
+): number
+
     x = x or 0
     y = y or 0
     local x0, y0 = x, y
@@ -30,11 +39,11 @@ local function matrix_draw(m: Matrix, x: number, y: number): number
     for _, j in ipairs(m) do
         local line = ""
         for k, i in ipairs(j) do
-            if k ~= #j then
-                line = line .. tostring(i) .. ","
-            else
+            --if k ~= #j then
+                --line = line .. tostring(i) .. ","
+            --else
                 line = line .. tostring(i)
-            end
+            --end
         end
         if #line > mat_width then
             mat_width = #line
@@ -85,50 +94,74 @@ local m5: Matrix = {
     {5, 6},
 }
 
+local m5: Matrix = {
+    {1, 2, 0, -1, 0, -1, -2, -3, 4},
+    {3, 4, 0, -1, 0, -1, -2, 0, 4},
+    {5, 6, 0, -1, 0, -1, -2, 0, 4},
+    {3, 4, 0, -1, 0, -1, -2, -3, 4},
+    {3, 4, 0, -1, 0, -1, -2, -3, 4},
+    {3, 4, 0, -1, 0, -1, -2, -3, 4},
+}
+
 local function matrix_transpose(m: Matrix): Matrix
     local res: {{number}} = {}
     local columns = #m[1]
     local rows = #m
 
-    --[[
-    for i = 1, rows do
-        table.insert(res, {})
-        for j = 1, columns do
-            res[#res][j] = 0
-        end
-    end
-    --]]
-
-    for i = 1, columns do
+    for _ = 1, columns do
         table.insert(res, {})
         for j = 1, rows do
-            res[#res][j] = 0
+            res[#res][j] = 1/0
         end
     end
+
+    coroutine.yield(res)
+    print('step')
 
     for i = 1, #res do
         for j = 1, #res[1] do
-            --res[ceil(j)][i] = res[i][ceil(j)]
-            --res[i][j] = 1.
-
-            --res[i][j] = res[j][i]
-            --res[j][i] = m[i][j]
             res[i][j] = m[j][i]
+            coroutine.yield(res)
+            print('innner step')
         end
     end
 
-
     return res
 end
+
+local matrix_transpose_coro = coroutine.create(matrix_transpose)
+local last_time: number = getTime()
+local wait_time = 0.
+local wait_time_real = 1.5
+local mat: Matrix
 
 love.draw = function()
     gr.setFont(font)
     local x0, y0 = 10., 10.
     local m: Matrix = m5
     local width = matrix_draw(m, x0, y0)
-    local m_T = matrix_transpose(m)
+    --local m_T = matrix_transpose(m)
     x0 = x0 + width
-    matrix_draw(m_T, x0, y0)
+    --matrix_draw(m_T, x0, y0)
+    --local stop = false
+
+    local now = getTime()
+    local ok: boolean
+    local new_mat: Matrix
+    if now - last_time > wait_time then
+        last_time = now
+        wait_time = wait_time_real
+        ok, new_mat = resume(matrix_transpose_coro, m) as (boolean, Matrix)
+
+        if ok then
+            mat = new_mat
+        end
+
+    end
+    if mat then
+        matrix_draw(mat, x0, y0)
+    end
+
 end
 
 love.update = function(_: number)
