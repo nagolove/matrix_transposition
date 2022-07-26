@@ -3,7 +3,6 @@ local getTime = love.timer.getTime
 local resume = coroutine.resume
 local gr = love.graphics
 local font = gr.newFont("dejavusansmono.ttf", 70)
-local text = gr.newText(font)
 
 love.window.setMode(1920, 1080)
 
@@ -36,21 +35,68 @@ local function matrix_draw(
 
    gr.line(x0, y0, x0, y0 + bracket_height)
 
-   for _, j in ipairs(m) do
+   local ColoredText = {}
+
+
+
+   local colored_text = {}
+
+   local function draw_colored_line(X, Y)
+      for _, v in ipairs(colored_text) do
+         gr.setColor(v.color)
+         gr.print(v.s, X, Y)
+         X = X + font:getWidth(v.s)
+      end
+   end
+
+   for col, j in ipairs(m) do
       local line = ""
-      for k, i in ipairs(j) do
+      colored_text = {}
+      for row, i in ipairs(j) do
+         local color
+         if active and active[2] == col and active[1] == row then
+            color = { 0, 1, 0, 1 }
 
-
-
-         line = line .. tostring(i)
-
+         else
+            color = { 1, 1, 1, 1 }
+         end
+         table.insert(colored_text, {
+            s = tostring(i),
+            color = color,
+         })
+         if row ~= #j then
+            line = line .. tostring(i) .. ","
+            table.insert(colored_text, {
+               s = ",",
+               color = { 1, 0, 0, 1 },
+            })
+         else
+            line = line .. tostring(i)
+         end
       end
       if #line > mat_width then
          mat_width = #line
       end
-      gr.print(line, x, y)
+
+      draw_colored_line(x, y)
       y = y + font:getHeight()
    end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
    mat_width = font:getWidth(string.rep("a", mat_width))
    x0 = x0 + mat_width
@@ -121,7 +167,7 @@ local function matrix_transpose(m)
    for i = 1, #res do
       for j = 1, #res[1] do
          res[i][j] = m[j][i]
-         coroutine.yield(res)
+         coroutine.yield(res, { i, j })
          print('innner step')
       end
    end
@@ -134,12 +180,13 @@ local last_time = getTime()
 local wait_time = 0.
 local wait_time_real = 1.5
 local mat
+local indices
 
 love.draw = function()
    gr.setFont(font)
    local x0, y0 = 10., 10.
    local m = m5
-   local width = matrix_draw(m, x0, y0)
+   local width = matrix_draw(m, x0, y0, indices)
 
    x0 = x0 + width
 
@@ -151,7 +198,8 @@ love.draw = function()
    if now - last_time > wait_time then
       last_time = now
       wait_time = wait_time_real
-      ok, new_mat = resume(matrix_transpose_coro, m)
+      ok, new_mat, indices = resume(matrix_transpose_coro, m)
+
 
       if ok then
          mat = new_mat
@@ -159,7 +207,11 @@ love.draw = function()
 
    end
    if mat then
-      matrix_draw(mat, x0, y0)
+      local reverse_indices
+      if indices then
+         reverse_indices = { indices[2], indices[1] }
+      end
+      matrix_draw(mat, x0, y0, reverse_indices)
    end
 
 end
